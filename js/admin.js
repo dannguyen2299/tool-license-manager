@@ -14,17 +14,29 @@ const DOWNLOAD_HEADERS = [
   'file_url', 'file_size', 'checksum', 'release_notes', 'status', 'release_date',
 ];
 
+const EMPLOYEE_HEADERS = [
+  'employee_id', 'email', 'display_name', 'allowed_tools', 'status',
+  'created_at', 'updated_at', 'notes',
+];
+
+// Quản lý nhân viên dùng Google Sheet riêng. Admin/super_admin phải được share
+// quyền Editor trên sheet đó; nếu chưa cấu hình hoặc chưa được share, tab Nhân viên
+// sẽ báo lỗi nhưng các chức năng khác vẫn có thể tiếp tục sử dụng.
+
 let tokenClient;
 let accessToken = null;
 let currentUser = null;
 let tools = [];
 let downloads = [];
 let licenses = [];
+let employees = [];
 let editingLicense = null;
 let activeToolId = null;
+let editingEmployee = null;
 let licensePage = 1;
 let pendingPage = 1;
 let toolPage = 1;
+let employeePage = 1;
 const LICENSE_PAGE_SIZE = 10;
 
 const OS_LIST = [
@@ -55,11 +67,19 @@ function isSuperAdmin() {
   return currentUser?.role === 'super_admin';
 }
 
+function isAdminRole() {
+  return currentUser?.role === 'admin' || isSuperAdmin();
+}
+
+function canManageEmployees() {
+  return isAdminRole();
+}
+
 function canManageTool(toolId) {
   if (!currentUser) return false;
   if (isSuperAdmin()) return true;
-  const allowed = currentUser.allowed_tools.split(',').map((value) => value.trim()).filter(Boolean);
-  return currentUser.role === 'admin' && (allowed.includes('*') || allowed.includes(toolId));
+  const allowed = String(currentUser.allowed_tools || '').split(',').map((value) => value.trim()).filter(Boolean);
+  return ['admin', 'employee'].includes(currentUser.role) && (allowed.includes('*') || allowed.includes(toolId));
 }
 
 function renderToolOptions() {
@@ -105,9 +125,12 @@ function renderDownloadOsRows() {
 function showTab(tab) {
   $('licensePanel').classList.toggle('hidden', tab !== 'license');
   $('toolsPanel').classList.toggle('hidden', tab !== 'tools');
+  $('employeesPanel').classList.toggle('hidden', tab !== 'employees');
   $('tabLicenses').classList.toggle('active', tab === 'license');
   $('tabTools').classList.toggle('active', tab === 'tools');
+  $('tabEmployees').classList.toggle('active', tab === 'employees');
   if (tab === 'tools') showToolsList();
+  if (tab === 'employees') renderEmployees();
 }
 
 function showToolsList() {
@@ -131,6 +154,7 @@ function showToolDetail(tool) {
 }
 
 $('tabLicenses').onclick = () => showTab('license');
+$('tabEmployees').onclick = () => { if (canManageEmployees()) showTab('employees'); };
 $('tabTools').onclick = () => { if (isSuperAdmin()) showTab('tools'); };
 $('toolBackBtn').onclick = showToolsList;
 
@@ -201,8 +225,66 @@ function renderPendingReview() {
 function applyRoleUI() {
   $('pendingReviewCard').classList.toggle('hidden', !isSuperAdmin());
   $('licenseKeyField').classList.toggle('hidden', !isSuperAdmin());
+  $('tabEmployees').classList.toggle('hidden', !canManageEmployees());
   $('tabTools').classList.toggle('hidden', !isSuperAdmin());
   if (!isSuperAdmin()) showTab('license');
+}
+
+function renderEmployees() {
+  if (!canManageEmployees()) return;
+  if (!CONFIG.EMPLOYEES_SHEET_ID) {
+    $('employeeRows').innerHTML = '<tr><td colspan="6" class="empty">Chưa cấu hình EMPLOYEES_SHEET_ID trong js/config.js.</td></tr>';
+    $('employeeCount').textContent = 'Chưa cấu hình';
+    $('employeePageInfo').textContent = '—';
+    $('employeePrev').disabled = true;
+    $('employeeNext').disabled = true;
+    return;
+  }
+  const sorted = [...employees].sort((a, b) => b.rowNumber - a.rowNumber);
+  const totalPages = Math.max(1, Math.ceil(sorted.length / LICENSE_PAGE_SIZE));
+  employeePage = Math.min(Math.max(employeePage, 1), totalPages);
+  const pageRows = sorted.slice((employeePage - 1) * LICENSE_PAGE_SIZE, employeePage * LICENSE_PAGE_SIZE);
+  $('employeeRows').innerHTML = pageRows.length ? pageRows.map((employee) => {
+    const inactive = employee.status === 'inactive';
+    return `<tr>
+      <td><strong>${escapeHtml(employee.email)}</strong><small>${escapeHtml(employee.employee_id)}</small></td>
+      <td>${escapeHtml(employee.display_name)}</td>
+      <td>${escapeHtml(employee.allowed_tools)}</td>
+      <td><span class="status-pill ${escapeHtml(employee.status)}">${escapeHtml(employee.status)}</span></td>
+      <td>${escapeHtml(employee.updated_at)}</td>
+      <td class="row-actions"><button class="button secondary" data-action="edit-employee" data-row="${employee.rowNumber}">Sửa</button><button class="button secondary" data-action="toggle-employee" data-row="${employee.rowNumber}">${inactive ? 'Kích hoạt' : 'Ngưng'}</button></td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="6" class="empty">Chưa có nhân viên.</td></tr>';
+  $('employeeCount').textContent = `${sorted.length} nhân viên`;
+  $('employeePageInfo').textContent = `Trang ${employeePage}/${totalPages}`;
+  $('employeePrev').disabled = employeePage <= 1;
+  $('employeeNext').disabled = employeePage >= totalPages;
+}
+
+function fillEmployeeForm(employee) {
+  editingEmployee = employee;
+  const form = $('employeeForm');
+  [...form.elements].forEach((element) => {
+    if (element.name && employee[element.name] !== undefined) element.value = employee[element.name];
+  });
+  $('employeeSubmit').textContent = 'Lưu thay đổi';
+  $('employeeCancel').classList.remove('hidden');
+  form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function resetEmployeeForm() {
+  editingEmployee = null;
+  $('employeeForm').reset();
+  $('employeeId').value = '';
+  $('employeeForm').elements.status.value = 'active';
+  $('employeeForm').elements.allowed_tools.value = '*';
+  $('employeeSubmit').textContent = 'Thêm nhân viên';
+  $('employeeCancel').classList.add('hidden');
+}
+
+function findConfiguredAccount(email) {
+  const accounts = [...(CONFIG.ADMINS || []), ...(CONFIG.EMPLOYEES || [])];
+  return accounts.find((account) => account.email?.toLowerCase() === email?.toLowerCase() && account.status === 'active');
 }
 
 async function logLicenseChange(license) {
@@ -214,7 +296,7 @@ async function logLicenseChange(license) {
 }
 
 async function loadAdminData() {
-  const account = CONFIG.ADMINS.find((admin) => admin.email.toLowerCase() === currentUser.email.toLowerCase() && admin.status === 'active');
+  const account = findConfiguredAccount(currentUser.email);
   if (!account) throw new Error('Tài khoản Google này chưa được cấp quyền quản trị.');
   currentUser = account;
   [tools, downloads, licenses] = await Promise.all([
@@ -222,6 +304,14 @@ async function loadAdminData() {
     readPublicSheet(CONFIG.PUBLIC_SHEET_NAMES.DOWNLOADS),
     readPrivateSheet(accessToken, CONFIG.LICENSES_SHEET_ID, CONFIG.ADMIN_SHEET_NAMES.LICENSES),
   ]);
+  employees = [];
+  if (canManageEmployees() && CONFIG.EMPLOYEES_SHEET_ID) {
+    try {
+      employees = await readPrivateSheet(accessToken, CONFIG.EMPLOYEES_SHEET_ID, CONFIG.EMPLOYEE_SHEET_NAME);
+    } catch (error) {
+      showStatus(`Không đọc được file nhân viên. Hãy kiểm tra quyền chia sẻ: ${error.message}`, 'error');
+    }
+  }
   $('userInfo').textContent = `${account.display_name || account.email} · ${account.role}`;
   $('loginBox').classList.add('hidden');
   $('adminPanel').classList.remove('hidden');
@@ -231,9 +321,11 @@ async function loadAdminData() {
   licensePage = 1;
   pendingPage = 1;
   toolPage = 1;
+  employeePage = 1;
   renderLicenses();
   renderPendingReview();
   renderToolsAdmin();
+  renderEmployees();
   showToolsList();
   updateExpiresAt();
 }
@@ -244,6 +336,8 @@ $('pendingPrev').onclick = () => { pendingPage -= 1; renderPendingReview(); };
 $('pendingNext').onclick = () => { pendingPage += 1; renderPendingReview(); };
 $('toolPrev').onclick = () => { toolPage -= 1; renderToolsAdmin(); };
 $('toolNext').onclick = () => { toolPage += 1; renderToolsAdmin(); };
+$('employeePrev').onclick = () => { employeePage -= 1; renderEmployees(); };
+$('employeeNext').onclick = () => { employeePage += 1; renderEmployees(); };
 
 function applyLicenseFilter() { licensePage = 1; renderLicenses(); }
 ['licenseStatusFilter', 'licenseIssuedFrom', 'licenseIssuedTo', 'licenseExpiresFrom', 'licenseExpiresTo'].forEach((id) => {
@@ -396,6 +490,53 @@ $('toolAdminRows').addEventListener('click', (event) => {
   if (!button) return;
   const tool = tools.find((item) => item.rowNumber === Number(button.dataset.row));
   if (tool) showToolDetail(tool);
+});
+
+$('employeeRows').addEventListener('click', async (event) => {
+  const button = event.target.closest('button[data-action]');
+  if (!button || !canManageEmployees()) return;
+  const employee = employees.find((item) => item.rowNumber === Number(button.dataset.row));
+  if (!employee) return;
+  if (button.dataset.action === 'edit-employee') return fillEmployeeForm(employee);
+  if (button.dataset.action !== 'toggle-employee') return;
+  const nextStatus = employee.status === 'inactive' ? 'active' : 'inactive';
+  if (!confirm(`${nextStatus === 'active' ? 'Kích hoạt' : 'Ngưng'} nhân viên ${employee.email}?`)) return;
+  try {
+    const updated = { ...employee, status: nextStatus, updated_at: new Date().toISOString() };
+    await updatePrivateRow(accessToken, CONFIG.EMPLOYEES_SHEET_ID, CONFIG.EMPLOYEE_SHEET_NAME, employee.rowNumber, updated, EMPLOYEE_HEADERS);
+    employees = await readPrivateSheet(accessToken, CONFIG.EMPLOYEES_SHEET_ID, CONFIG.EMPLOYEE_SHEET_NAME);
+    renderEmployees();
+    showStatus(`Đã ${nextStatus === 'active' ? 'kích hoạt' : 'ngưng'} nhân viên.`);
+  } catch (error) { showStatus(error.message, 'error'); }
+});
+
+$('employeeForm').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!canManageEmployees()) return showStatus('Bạn không có quyền quản lý nhân viên.', 'error');
+  if (!CONFIG.EMPLOYEES_SHEET_ID) return showStatus('Chưa cấu hình EMPLOYEES_SHEET_ID trong js/config.js.', 'error');
+  const form = new FormData(event.currentTarget);
+  const email = String(form.get('email') || '').trim().toLowerCase();
+  const duplicate = employees.find((item) => item.email?.toLowerCase() === email && item.rowNumber !== editingEmployee?.rowNumber);
+  if (duplicate) return showStatus('Email nhân viên đã tồn tại.', 'error');
+  const employee = { ...(editingEmployee || {}), ...Object.fromEntries(form.entries()) };
+  employee.employee_id = editingEmployee?.employee_id || `EMP-${Date.now()}`;
+  employee.email = email;
+  employee.created_at = editingEmployee?.created_at || new Date().toISOString();
+  employee.updated_at = new Date().toISOString();
+  $('employeeSubmit').disabled = true;
+  try {
+    if (editingEmployee) {
+      await updatePrivateRow(accessToken, CONFIG.EMPLOYEES_SHEET_ID, CONFIG.EMPLOYEE_SHEET_NAME, editingEmployee.rowNumber, employee, EMPLOYEE_HEADERS);
+      showStatus('Đã cập nhật nhân viên.');
+    } else {
+      await appendPrivateRow(accessToken, CONFIG.EMPLOYEES_SHEET_ID, CONFIG.EMPLOYEE_SHEET_NAME, employee, EMPLOYEE_HEADERS);
+      showStatus('Đã thêm nhân viên. Hãy cập nhật email vào CONFIG.EMPLOYEES nếu nhân viên cần đăng nhập.');
+    }
+    employees = await readPrivateSheet(accessToken, CONFIG.EMPLOYEES_SHEET_ID, CONFIG.EMPLOYEE_SHEET_NAME);
+    resetEmployeeForm();
+    renderEmployees();
+  } catch (error) { showStatus(error.message, 'error'); }
+  $('employeeSubmit').disabled = false;
 });
 
 $('toolForm').addEventListener('submit', async (event) => {

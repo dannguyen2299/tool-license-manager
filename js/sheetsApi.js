@@ -33,12 +33,16 @@ function rowsToObjects(values = []) {
   });
 }
 
+function hasDataFields(row) {
+  return Object.entries(row).some(([key, value]) => key !== 'rowNumber' && Boolean(String(value ?? '').trim()));
+}
+
 async function readPublicSheet(sheetName, range = 'A:Z') {
   assertConfigured('PUBLIC_SHEET_ID', 'API_KEY');
   const fullRange = `${sheetName}!${range}`;
   const response = await fetch(valuesUrl(CONFIG.PUBLIC_SHEET_ID, fullRange, `?key=${encodeURIComponent(CONFIG.API_KEY)}`));
   const data = await parseResponse(response, 'Không đọc được dữ liệu công khai');
-  return rowsToObjects(data.values || []).filter((row) => Object.values(row).some(Boolean));
+  return rowsToObjects(data.values || []).filter(hasDataFields);
 }
 
 function assertSpreadsheetId(spreadsheetId, label) {
@@ -51,7 +55,7 @@ async function readPrivateSheet(accessToken, spreadsheetId, sheetName, range = '
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   const data = await parseResponse(response, `Không đọc được sheet ${sheetName}`);
-  return rowsToObjects(data.values || []).filter((row) => Object.values(row).some(Boolean));
+  return rowsToObjects(data.values || []).filter(hasDataFields);
 }
 
 function objectToRow(object, headers) {
