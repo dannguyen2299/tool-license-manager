@@ -50,6 +50,24 @@ const $ = (id) => document.getElementById(id);
 function showStatus(message, type = 'success') {
   $('statusMessage').textContent = message;
   $('statusMessage').className = `notice ${type}`;
+  $('statusMessage').setAttribute('role', type === 'error' ? 'alert' : 'status');
+}
+
+function statusLabel(status) {
+  return {
+    active: 'Đang hoạt động',
+    inactive: 'Đang ẩn',
+    pending_review: 'Chờ duyệt',
+    expired: 'Đã hết hạn',
+    suspended: 'Tạm ngưng',
+    revoked: 'Đã khóa',
+  }[status] || status || 'Chưa cập nhật';
+}
+
+function localizeStatusFilters() {
+  [...$('licenseStatusFilter').options].forEach((option) => {
+    option.textContent = option.value ? statusLabel(option.value) : 'Tất cả';
+  });
 }
 
 async function copyTextToClipboard(text) {
@@ -133,7 +151,7 @@ function renderToolsAdmin() {
     <td><strong>${escapeHtml(tool.name)}</strong><small>${escapeHtml(tool.tool_id)}</small></td>
     <td>${escapeHtml(tool.latest_version)}</td>
     <td>${escapeHtml(tool.sort_order)}</td>
-    <td><span class="status-pill ${escapeHtml(tool.status)}">${escapeHtml(tool.status)}</span></td>
+    <td><span class="status-pill ${escapeHtml(tool.status)}">${escapeHtml(statusLabel(tool.status))}</span></td>
     <td class="row-actions"><button class="button secondary" data-action="manage-tool" data-row="${tool.rowNumber}">Quản lý</button></td>
   </tr>`).join('') : '<tr><td colspan="5" class="empty">Chưa có tool.</td></tr>';
   $('toolCount').textContent = `${sorted.length} tool`;
@@ -152,7 +170,7 @@ function renderDownloadOsRows() {
       <td><input class="dl-url" value="${escapeHtml(file.file_url || '')}" placeholder="Link Google Drive" /></td>
       <td><input class="dl-size" value="${escapeHtml(file.file_size || '')}" placeholder="45 MB" /></td>
       <td><input type="date" class="dl-date" value="${escapeHtml(file.release_date || '')}" /></td>
-      <td><select class="dl-status"><option value="active"${isInactive ? '' : ' selected'}>active</option><option value="inactive"${isInactive ? ' selected' : ''}>inactive</option></select></td>
+      <td><select class="dl-status"><option value="active"${isInactive ? '' : ' selected'}>${statusLabel('active')}</option><option value="inactive"${isInactive ? ' selected' : ''}>${statusLabel('inactive')}</option></select></td>
       <td class="row-actions"><button class="button secondary" data-action="save-download" type="button">Lưu</button></td>
     </tr>`;
   }).join('');
@@ -165,6 +183,12 @@ function showTab(tab) {
   $('tabLicenses').classList.toggle('active', tab === 'license');
   $('tabTools').classList.toggle('active', tab === 'tools');
   $('tabEmployees').classList.toggle('active', tab === 'employees');
+  $('tabLicenses').setAttribute('aria-selected', String(tab === 'license'));
+  $('tabTools').setAttribute('aria-selected', String(tab === 'tools'));
+  $('tabEmployees').setAttribute('aria-selected', String(tab === 'employees'));
+  $('licensePanel').setAttribute('aria-hidden', String(tab !== 'license'));
+  $('toolsPanel').setAttribute('aria-hidden', String(tab !== 'tools'));
+  $('employeesPanel').setAttribute('aria-hidden', String(tab !== 'employees'));
   if (tab === 'tools') showToolsList();
   if (tab === 'employees') renderEmployees();
 }
@@ -223,13 +247,13 @@ function renderLicenses() {
     return '';
   };
   $('licenseRows').innerHTML = pageRows.length ? pageRows.map((license) => `<tr>
-    <td class="license-column"><div class="license-cell" data-copy-license="${escapeHtml(license.license_key)}" title="Bấm để sao chép license key"><strong class="license-value">${escapeHtml(license.license_key || '(chưa cấp)')}</strong><button class="license-copy" type="button" data-copy-license="${escapeHtml(license.license_key)}" aria-label="Sao chép license key" title="Sao chép license key"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 9h10v10H9z"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></button><small>${escapeHtml(license.license_id)}</small></div></td>
-    <td>${escapeHtml(license.tool_id)}</td>
-    <td>${escapeHtml(license.customer_name)}<small>${escapeHtml([license.customer_email, license.customer_phone].filter(Boolean).join(' · '))}</small></td>
-    <td>${escapeHtml(license.machine_id)}</td>
-    <td>${escapeHtml(license.expires_at)}</td>
-    <td><span class="status-pill ${escapeHtml(license.status)}">${escapeHtml(license.status)}</span></td>
-    <td class="row-actions">${actions(license)}</td>
+    <td class="license-column" data-label="License"><div class="license-cell" data-copy-license="${escapeHtml(license.license_key)}" title="Bấm để sao chép license key"><strong class="license-value">${escapeHtml(license.license_key || '(chưa cấp)')}</strong><button class="license-copy" type="button" data-copy-license="${escapeHtml(license.license_key)}" aria-label="Sao chép license key" title="Sao chép license key"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 9h10v10H9z"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></button><small>${escapeHtml(license.license_id)}</small></div></td>
+    <td data-label="Tool">${escapeHtml(license.tool_id)}</td>
+    <td data-label="Khách hàng">${escapeHtml(license.customer_name)}<small>${escapeHtml([license.customer_email, license.customer_phone].filter(Boolean).join(' · '))}</small></td>
+    <td data-label="Machine ID">${escapeHtml(license.machine_id)}</td>
+    <td data-label="Hết hạn">${escapeHtml(license.expires_at)}</td>
+    <td data-label="Trạng thái"><span class="status-pill ${escapeHtml(license.status)}">${escapeHtml(statusLabel(license.status))}</span></td>
+    <td class="row-actions" data-label="Thao tác">${actions(license)}</td>
   </tr>`).join('') : '<tr><td colspan="6" class="empty">Chưa có license.</td></tr>';
   $('licenseCount').textContent = `${sorted.length} license`;
   $('licensePageInfo').textContent = `Trang ${licensePage}/${totalPages}`;
@@ -263,7 +287,7 @@ function applyRoleUI() {
   $('licenseKeyField').classList.toggle('hidden', !isSuperAdmin());
   $('tabEmployees').classList.toggle('hidden', !canManageEmployees());
   $('tabTools').classList.toggle('hidden', !isSuperAdmin());
-  if (!isSuperAdmin()) showTab('license');
+  showTab('license');
 }
 
 function renderEmployees() {
@@ -286,7 +310,7 @@ function renderEmployees() {
       <td><strong>${escapeHtml(employee.email)}</strong><small>${escapeHtml(employee.employee_id)}</small></td>
       <td>${escapeHtml(employee.display_name)}</td>
       <td>${escapeHtml(employee.allowed_tools)}</td>
-      <td><span class="status-pill ${escapeHtml(employee.status)}">${escapeHtml(employee.status)}</span></td>
+      <td><span class="status-pill ${escapeHtml(employee.status)}">${escapeHtml(statusLabel(employee.status))}</span></td>
       <td>${escapeHtml(employee.updated_at)}</td>
       <td class="row-actions"><button class="button secondary" data-action="edit-employee" data-row="${employee.rowNumber}">Sửa</button><button class="button secondary" data-action="toggle-employee" data-row="${employee.rowNumber}">${inactive ? 'Kích hoạt' : 'Ngưng'}</button></td>
     </tr>`;
@@ -353,6 +377,7 @@ async function loadAdminData() {
   $('adminPanel').classList.remove('hidden');
   $('logoutBtn').classList.remove('hidden');
   applyRoleUI();
+  localizeStatusFilters();
   renderToolOptions();
   licensePage = 1;
   pendingPage = 1;

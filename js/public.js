@@ -8,6 +8,8 @@ document.getElementById('year').textContent = new Date().getFullYear();
 function showError(message) {
   statusMessage.textContent = message;
   statusMessage.className = 'notice error';
+  statusMessage.setAttribute('role', 'alert');
+  toolGrid.innerHTML = '<p class="empty">Không thể tải danh sách tool lúc này.</p>';
 }
 
 function renderTools() {

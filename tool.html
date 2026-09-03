@@ -7,11 +7,11 @@
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-  <header class="admin-header"><div class="wrap nav"><a class="brand" href="index.html">TOOL CENTER</a><a href="index.html">‹ Quay lại danh sách</a></div></header>
+  <header class="admin-header"><div class="wrap nav"><a class="brand" href="index.html">TOOL CENTER</a><a class="back-link" href="index.html">‹ Quay lại danh sách</a></div></header>
   <main class="wrap main-content">
-    <div id="statusMessage"></div>
-    <section id="toolDetailSection"></section>
-    <section id="downloads" class="downloads-section"><div class="section-heading"><div><p class="eyebrow">RELEASES</p><h2>File tải xuống</h2></div></div><div class="table-wrap"><table><thead><tr><th>Hệ điều hành</th><th>Phiên bản</th><th>File</th><th></th></tr></thead><tbody id="downloadRows"></tbody></table></div></section>
+    <div id="statusMessage" aria-live="polite"></div>
+    <section id="toolDetailSection" aria-live="polite"><p class="loading">Đang tải thông tin tool…</p></section>
+    <section id="downloads" class="downloads-section" aria-labelledby="downloads-heading"><div class="section-heading"><div><p class="eyebrow">RELEASES</p><h2 id="downloads-heading">File tải xuống</h2></div></div><div class="table-wrap"><table class="download-table"><thead><tr><th>Hệ điều hành</th><th>Phiên bản</th><th>File</th><th></th></tr></thead><tbody id="downloadRows"><tr><td colspan="4" class="loading">Đang tải file…</td></tr></tbody></table></div></section>
   </main>
   <footer class="wrap footer">Tool Center · <span id="year"></span></footer>
   <script src="js/config.js"></script><script src="js/sheetsApi.js"></script><script src="js/toolDetail.js"></script>

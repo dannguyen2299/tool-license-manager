@@ -8,27 +8,30 @@ document.getElementById('year').textContent = new Date().getFullYear();
 function showError(message) {
   statusMessage.textContent = message;
   statusMessage.className = 'notice error';
+  statusMessage.setAttribute('role', 'alert');
+  toolDetailSection.innerHTML = '<p class="empty">Không thể tải thông tin tool lúc này.</p>';
+  downloadRows.innerHTML = '<tr><td colspan="4" class="empty">Không thể tải danh sách file.</td></tr>';
 }
 
 function renderTool(tool) {
   document.title = `${tool.name} · Tool Center`;
   const description = escapeHtml(tool.description || tool.short_description).replace(/\n/g, '<br>');
   toolDetailSection.innerHTML = `
-    <div class="table-card tool-detail">
+    <article class="tool-detail">
       ${tool.image_url ? `<img class="tool-image" src="${escapeHtml(tool.image_url)}" alt="${escapeHtml(tool.name)}" />` : ''}
       <p class="eyebrow">TOOL</p>
       <h1>${escapeHtml(tool.name)}</h1>
       <p class="tool-meta">Phiên bản ${escapeHtml(tool.latest_version || 'đang cập nhật')}</p>
       <p>${description}</p>
-    </div>
+    </article>
   `;
 }
 
 function renderDownloads(rows) {
   downloadRows.innerHTML = rows.length ? rows.map((file) => `<tr>
-    <td>${escapeHtml(file.os)} ${escapeHtml(file.architecture)}</td>
-    <td>${escapeHtml(file.version)}</td>
-    <td>${escapeHtml(file.file_name)}<small>${escapeHtml(file.file_size)}</small></td>
+    <td data-label="Hệ điều hành">${escapeHtml(file.os)} ${escapeHtml(file.architecture)}</td>
+    <td data-label="Phiên bản">${escapeHtml(file.version)}</td>
+    <td data-label="File">${escapeHtml(file.file_name)}<small>${escapeHtml(file.file_size)}</small></td>
     <td><a class="button" href="${escapeHtml(file.file_url)}" target="_blank" rel="noopener">Tải xuống</a></td>
   </tr>`).join('') : '<tr><td colspan="4" class="empty">Chưa có file tải cho tool này.</td></tr>';
 }

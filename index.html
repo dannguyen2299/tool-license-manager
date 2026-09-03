@@ -12,8 +12,8 @@
     <div class="wrap hero-content"><p class="eyebrow">SOFTWARE TOOLKIT</p><h1>Các tool của bạn,<br /><span>tải xuống dễ dàng.</span></h1><p class="hero-copy">Khám phá công cụ, xem phiên bản mới nhất và tải đúng file cho hệ điều hành của bạn.</p></div>
   </header>
   <main class="wrap main-content">
-    <div id="statusMessage"></div>
-    <section><div class="section-heading"><div><p class="eyebrow">DISCOVER</p><h2>Các tool</h2></div><input id="searchInput" class="search" placeholder="Tìm tool hoặc phiên bản..." /></div><div id="toolGrid" class="tool-grid"></div></section>
+    <div id="statusMessage" aria-live="polite"></div>
+    <section aria-labelledby="tools-heading"><div class="section-heading"><div><p class="eyebrow">DISCOVER</p><h2 id="tools-heading">Các tool</h2></div><label class="search-field"><span>Tìm kiếm</span><input id="searchInput" class="search" placeholder="Tên tool hoặc phiên bản" /></label></div><div id="toolGrid" class="tool-grid" aria-live="polite"><p class="loading">Đang tải tool…</p></div></section>
   </main>
   <footer class="wrap footer">Tool Center · <span id="year"></span></footer>
   <script src="js/config.js"></script><script src="js/sheetsApi.js"></script><script src="js/public.js"></script>
