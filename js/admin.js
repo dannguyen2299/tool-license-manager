@@ -52,6 +52,42 @@ function showStatus(message, type = 'success') {
   $('statusMessage').className = `notice ${type}`;
 }
 
+async function copyTextToClipboard(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+  } catch {
+    // Fall back to the legacy API when Clipboard API permissions are unavailable.
+  }
+
+  const textArea = document.createElement('textarea');
+  textArea.value = text;
+  textArea.setAttribute('readonly', '');
+  textArea.style.position = 'fixed';
+  textArea.style.opacity = '0';
+  document.body.appendChild(textArea);
+  textArea.select();
+  const copied = document.execCommand('copy');
+  textArea.remove();
+  if (!copied) throw new Error('Không thể sao chép license key.');
+}
+
+async function copyLicenseKey(licenseKey, trigger) {
+  if (!licenseKey) return showStatus('License này chưa được cấp key.', 'error');
+  try {
+    await copyTextToClipboard(licenseKey);
+    showStatus('Đã sao chép license key.');
+    if (trigger) {
+      trigger.classList.add('copied');
+      window.setTimeout(() => trigger.classList.remove('copied'), 1400);
+    }
+  } catch (error) {
+    showStatus(error.message, 'error');
+  }
+}
+
 function saveToken(token, expiresIn) {
   sessionStorage.setItem('license_admin_token', JSON.stringify({ token, expiresAt: Date.now() + expiresIn * 1000 }));
 }
@@ -187,7 +223,7 @@ function renderLicenses() {
     return '';
   };
   $('licenseRows').innerHTML = pageRows.length ? pageRows.map((license) => `<tr>
-    <td><strong>${escapeHtml(license.license_key || '(chưa cấp)')}</strong><small>${escapeHtml(license.license_id)}</small></td>
+    <td class="license-column"><div class="license-cell" data-copy-license="${escapeHtml(license.license_key)}" title="Bấm để sao chép license key"><strong class="license-value">${escapeHtml(license.license_key || '(chưa cấp)')}</strong><button class="license-copy" type="button" data-copy-license="${escapeHtml(license.license_key)}" aria-label="Sao chép license key" title="Sao chép license key"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M9 9h10v10H9z"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></button><small>${escapeHtml(license.license_id)}</small></div></td>
     <td>${escapeHtml(license.tool_id)}</td>
     <td>${escapeHtml(license.customer_name)}<small>${escapeHtml([license.customer_email, license.customer_phone].filter(Boolean).join(' · '))}</small></td>
     <td>${escapeHtml(license.machine_id)}</td>
@@ -413,6 +449,11 @@ function updateExpiresAt() {
 $('licenseDuration').addEventListener('input', updateExpiresAt);
 $('licenseCancel').onclick = resetLicenseForm;
 $('licenseRows').addEventListener('click', async (event) => {
+  const copyTarget = event.target.closest('[data-copy-license]');
+  if (copyTarget) {
+    event.stopPropagation();
+    return copyLicenseKey(copyTarget.dataset.copyLicense, copyTarget.matches('button') ? copyTarget : null);
+  }
   const button = event.target.closest('button[data-action]');
   if (!button) return;
   const license = licenses.find((item) => item.rowNumber === Number(button.dataset.row));
